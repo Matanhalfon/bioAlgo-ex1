@@ -9,6 +9,7 @@ MATRIX_SIZE = 5
 DELIMITERS = '\n|\t'
 READING_MODE = 'r'
 INITIATION_LINE = 1
+LOCAL_START=0
 GAP_IN_A = 1
 GAP_IN_B = 2
 DIAG = 3
@@ -16,6 +17,7 @@ GAP = "-"
 INITIAL_STR = ""
 GLOBAL = "global"
 LOCAL = "local"
+OVERLAP="overlap"
 
 
 def fastaread(fasta_name):
@@ -62,6 +64,8 @@ def getFlag(val, diagScore, gapInAScore, gapInBScore):
         return GAP_IN_A
     elif (val == gapInBScore):
         return GAP_IN_B
+    else:
+        return LOCAL_START
 
 
 def parseSeg(path):
@@ -98,9 +102,8 @@ def printResult(seqA, seqB, score, alignmentType):
     print(alignmentType + ":" + str(score))
 
 
-def globalMAT(scoreTable,flagsTable, seqA, seqB):
-    for i in range(1, len(seqA) + INITIATION_LINE):
-        scoreTable[i][0] = scoreTable[i - 1][0] + scoreDict["-" + seqA[i - 1]]
+def globalMat(scoreTable, flagsTable, seqA, seqB):
+    setFirstCol(scoreTable,seqA,seqB)
     for i in range(1, len(seqB) + INITIATION_LINE):
         scoreTable[0][i] = scoreTable[0][i - 1] + scoreDict["-" + seqB[i - 1]]
     flagsTable[0] = GAP_IN_A
@@ -109,7 +112,19 @@ def globalMAT(scoreTable,flagsTable, seqA, seqB):
     flagsTable[0][0] = 0
 
 
-def getGlobalScore(seqA, seqB, scoreDict, AlinmentType):
+def setFirstCol(scoreTable,  seqA, seqB):
+    for i in range(1, len(seqA) + INITIATION_LINE):
+        scoreTable[i][0] = scoreTable[i - 1][0] + scoreDict["-" + seqA[i - 1]]
+
+def score(type,diagScore, gapInAScore, gapInBScore):
+    if((type==GLOBAL)|(type==OVERLAP)):
+        return max(diagScore, gapInAScore, gapInBScore)
+    elif(type==LOCAL):
+        return max(diagScore, gapInAScore, gapInBScore,0)
+
+
+
+def getTables(seqA, seqB, scoreDict, alinmentType):
     '''
     :param seqA: first DNA sequence
     :param seqB: second DNA sequence
@@ -118,14 +133,16 @@ def getGlobalScore(seqA, seqB, scoreDict, AlinmentType):
     '''
     scoreTable = np.zeros((len(seqA) + INITIATION_LINE, len(seqB) + INITIATION_LINE))
     flagsTable = np.zeros((len(seqA) + INITIATION_LINE, len(seqB) + INITIATION_LINE))
-    if (AlinmentType == GLOBAL):
-        globalMAT(scoreTable,flagsTable, seqA, seqB)
+    if (alinmentType == GLOBAL):
+        globalMat(scoreTable, flagsTable, seqA, seqB)
+    elif(alinmentType==OVERLAP):
+        setFirstCol(scoreTable,seqA,seqB)
     for j in range(1, len(seqB) + INITIATION_LINE):
         for i in range(1, len(seqA) + INITIATION_LINE):
             diagScore = getDiagScore(scoreTable, i, j, scoreDict, seqA, seqB)
             gapInAScore = getGapInAScore(scoreTable, i, j, scoreDict, seqB)
             gapInBScore = getGapInBScore(scoreTable, i, j, scoreDict, seqA)
-            scoreTable[i][j] = max(diagScore, gapInAScore, gapInBScore)
+            scoreTable[i][j] = score(alinmentType,diagScore, gapInAScore, gapInBScore)
             flagsTable[i][j] = getFlag(scoreTable[i][j], diagScore, gapInAScore, gapInBScore)
     return scoreTable, flagsTable
 
@@ -137,6 +154,31 @@ def findLocalScore(scoreTable):
     index = np.where(scoreTable == max)
     return max, index[0][0]+INITIATION_LINE, index[1][0]+INITIATION_LINE
 
+def findOverlapScore(scoreTable):
+    col=scoreTable[:-1]
+    max=np.max(col)
+
+
+def printSol(type,seqA,seqB,scoreDict):
+    scoreTable, flagTable = getTables(seqA, seqB, scoreDict, type)
+    if(type==GLOBAL):
+        score=scoreTable[-1][-1]
+        row,col=len(seqA),len(seqB)
+    elif(type==LOCAL):
+        score, row, col = findLocalScore(scoreTable)
+    elif(type==OVERLAP):
+        col=scoreTable[:,-1]
+        score=max(col)
+        index = np.where( col== score)
+        row,col=index[0][0],len(seqB)
+    else:
+        print("oh no")
+        return
+    print(scoreTable)
+    print()
+    print(flagTable)
+    seqA, seqB = traceBackTable(flagTable, seqA, seqB, row, col)
+    printResult(seqA, seqB, score, LOCAL)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -152,8 +194,8 @@ def main():
     seqB = parseSeg(
         "C:\\Users\\matan\\Desktop\\School\\bioAlgo\\bioAlgo-ex1\\fastas\\HelicoverpaArmigera-cMyc -B.fasta")
     if command_args.align_type == 'global':
-        scoreTable, flagTable = getGlobalScore(seqA, seqB, scoreDict, GLOBAL)
-        score = scoreTable[-1][-1]  # todo switch with alienment
+        scoreTable, flagTable = getTables(seqA, seqB, scoreDict, GLOBAL)
+        score = scoreTable[-1][-1]
         seqA, seqB = traceBackTable(flagTable, seqA, seqB,len(seqA),len(seqB))
         printResult(seqA, seqB, score, GLOBAL)
     elif command_args.align_type == 'local':
@@ -162,16 +204,12 @@ def main():
         raise NotImplementedError
     # print the best alignment and score
 
+
 if __name__ == '__main__':
     scoreDict = parseScoreMat("C:\\Users\\matan\\Desktop\\School\\bioAlgo\\bioAlgo-ex1\\score_matrix.tsv")
     seqA = parseSeg(
-        "C:\\Users\\matan\\Desktop\\School\\bioAlgo\\bioAlgo-ex1\\fastas\\HelicoverpaArmigera-cMyc -A.fasta")
+        "C:\\Users\\matan\\Desktop\\School\\bioAlgo\\bioAlgo-ex1\\fastas\\A.fasta")
     seqB = parseSeg(
-        "C:\\Users\\matan\\Desktop\\School\\bioAlgo\\bioAlgo-ex1\\fastas\\HelicoverpaArmigera-cMyc -B.fasta")
-    scoreTable, flagTable = getGlobalScore(seqA, seqB, scoreDict, LOCAL)
-    score, row, col = findLocalScore(scoreTable)
-    print(scoreTable)
-    print()
-    print(flagTable)
-    seqA, seqB = traceBackTable(flagTable, seqA, seqB,row,col)
-    printResult(seqA, seqB, score, LOCAL)
+        "C:\\Users\\matan\\Desktop\\School\\bioAlgo\\bioAlgo-ex1\\fastas\\B.fasta")
+    printSol(OVERLAP,seqB,seqA,scoreDict)
+    #todo : remove print, doc, parse args
