@@ -2,6 +2,8 @@ import argparse
 import numpy as np
 from itertools import groupby
 from Bio import SeqIO
+import re
+import math
 
 MATRIX_SIZE = 5
 DELIMITERS = '\n|\t'
@@ -35,20 +37,21 @@ def parseScoreMat(path):
     socreDict = {}
     for i in range(MATRIX_SIZE):
         for j in range(MATRIX_SIZE):
-            socreDict[mat[i + 1] + mat[j + 1]] = mat[1 + i + (MATRIX_SIZE + 1) * (j + 1)]
+            socreDict[mat[i + 1] + mat[j + 1]] = float(mat[1 + i + (MATRIX_SIZE + 1) * (j + 1)])
     return socreDict
 
 
 def getDiagScore(scoreTable, i, j, scoreDict, seqA, seqB):
-    return scoreTable[i - 1][j - 1] + scoreDict[seqA[i] + seqB[j]]
+    return scoreDict[seqA[i - 1] + seqB[j - 1]]+scoreTable[i - 1][j - 1]
+
 
 
 def getGapInAScore(scoreTable, i, j, scoreDict, seqB):
-    return scoreTable[i][j - 1] + scoreDict["-" + seqB[j]]
+    return scoreTable[i][j - 1] + scoreDict["-" + seqB[j-1]]
 
 
 def getGapInBScore(scoreTable, i, j, scoreDict, seqA):
-    return scoreTable[i - 1][j] + scoreDict["-" + seqA[i]]
+    return scoreTable[i - 1][j] + scoreDict["-" + seqA[i-1]]
 
 
 def getFlag(val, diagScore, gapInAScore, gapInBScore):
@@ -60,30 +63,35 @@ def getFlag(val, diagScore, gapInAScore, gapInBScore):
         return GAP_IN_B
 
 def parseSeg(path):
-    seq_record=list(seqIO.parse(path))[0]
-    return seq_record
+    seq_record=list(SeqIO.parse(path,"fasta"))[0]
+    return seq_record.seq
 
-# def printAlignment(seqA,flagTable):
 
-def traceBackTable(flagTable,lSeqB, seq, gap_in_a_flag, gap_in_b_flag):
-    alingedSeq = INITIAL_STR
+def traceBackTable(flagTable,seqA, seqB):
+    alingedSeqA = INITIAL_STR
+    alingedSeqB = INITIAL_STR
     current = flagTable[-1][-1]
-    row ,col= len(seq),lSeqB
+    row ,col= len(seqA),len(seqB)
     while current!=0:
         if(current==DIAG):
-            alingedSeq+=seq[-1]
-            seq = seq[:-1]
+            alingedSeqA+=seqA[-1]
+            seqA = seqA[:-1]
+            alingedSeqB += seqB[-1]
+            seqB = seqB[:-1]
             row-=1
             col-=1
-        elif(current == gap_in_b_flag):
-            alingedSeq+=seq[-1]
-            seq = seq[:-1]
+        elif(current == GAP_IN_B):
+            alingedSeqA+=seqA[-1]
+            seqA = seqA[:-1]
+            alingedSeqB += GAP
             row-=1
-        elif(current== gap_in_a_flag):
-            alingedSeq+=GAP
+        elif(current== GAP_IN_A):
+            alingedSeqA+=GAP
+            alingedSeqB += seqB[-1]
+            seqB = seqB[:-1]
             col-=1
         current = flagTable[row][col]
-    return alingedSeq[::-1]
+    return alingedSeqA[::-1], alingedSeqB[::-1]
 
 def printResult(seqA, seqB, score, alignmentType):
     print(seqA)
@@ -93,22 +101,32 @@ def printResult(seqA, seqB, score, alignmentType):
 
 def getGlobalScore(seqA, seqB, scoreDict):
     '''
-
     :param seqA: first DNA sequence
     :param seqB: second DNA sequence
     :param scoreDict: dictionary with scores for each combination
     :return: ??
     '''
-    scoreTable = np.zeros(len(a) + INITIATION_LINE, len(b) + INITIATION_LINE)
-    flagsTable = np.zeros(len(a)+INITIATION_LINE, len(b)+INITIATION_LINE)
-    for j in range(1, len(b) + INITIATION_LINE):
-        for i in rang(1, len(a) + INITIATION_LINE):
+    scoreTable = np.zeros((len(seqA) + INITIATION_LINE, len(seqB) + INITIATION_LINE))
+    for i in range(1,len(seqA)+INITIATION_LINE):
+        scoreTable[i][0]=scoreTable[i-1][0]+scoreDict["-"+seqA[i-1]]
+    for i in range(1,len(seqB)+INITIATION_LINE):
+        scoreTable[0][i]=scoreTable[0][i-1]+scoreDict["-"+seqB[i-1]]
+    flagsTable = np.zeros((len(seqA)+INITIATION_LINE, len(seqB)+INITIATION_LINE))
+    flagsTable[0]=GAP_IN_A
+    for i in range(1,len(seqA)+INITIATION_LINE):
+        flagsTable[i][0]=GAP_IN_B
+    flagsTable[0][0]=0
+    for j in range(1, len(seqB) + INITIATION_LINE):
+        for i in range(1, len(seqA) + INITIATION_LINE):
             diagScore = getDiagScore(scoreTable, i, j, scoreDict, seqA, seqB)
             gapInAScore = getGapInAScore(scoreTable, i, j, scoreDict, seqB)
             gapInBScore = getGapInBScore(scoreTable, i, j, scoreDict, seqA)
             scoreTable[i][j] = max(diagScore, gapInAScore, gapInBScore)
             flagsTable[i ][j] = getFlag(scoreTable[i][j],diagScore,gapInAScore,gapInBScore )
-    return scoreTable[i][j], flagsTable
+    print(scoreTable)
+    print()
+    print(flagsTable)
+    return scoreTable[-1][-1], flagsTable
 
 
 def main():
@@ -128,13 +146,9 @@ def main():
     # print the best alignment and score
 
 if __name__ == '__main__':
-    scoreDict = parseScoreMat()
-    seqA = parseSeg(path)
-    seqB = parseSeg(path)
+    scoreDict = parseScoreMat("C:\\Users\\matan\\Desktop\\School\\bioAlgo\\bioAlgo-ex1\\score_matrix.tsv")
+    seqA = parseSeg("C:\\Users\\matan\\Desktop\\School\\bioAlgo\\bioAlgo-ex1\\fastas\\HelicoverpaArmigera-cMyc -A.fasta")
+    seqB = parseSeg("C:\\Users\\matan\\Desktop\\School\\bioAlgo\\bioAlgo-ex1\\fastas\\HelicoverpaArmigera-cMyc -B.fasta")
     score, flagTable=getGlobalScore(seqA,seqB,scoreDict)
-    seqA = traceBackTable(flagTable,len(seqB), seqA, GAP_IN_A, GAP_IN_B)
-    seqB = traceBackTable(flagTable, len(seqA), seqB, GAP_IN_B, GAP_IN_A)
+    seqA, seqB = traceBackTable(flagTable, seqA, seqB)
     printResult(seqA, seqB, score, "global")
-
-
-
