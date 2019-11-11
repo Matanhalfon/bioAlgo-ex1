@@ -206,10 +206,10 @@ def score(type, diagScore, gapInAScore, gapInBScore):
     '''
 
     :param type: aligment type
-    :param diagScore: score for
-    :param gapInAScore:
-    :param gapInBScore:
-    :return:
+    :param diagScore: score for the diagonal(match to letters) move at the table
+    :param gapInAScore: score for the add gap in seqA  at the table
+    :param gapInBScore:score for the add gap in seqB  at the table
+    :return:the max score between them
     '''
     if ((type == GLOBAL) | (type == OVERLAP)):
         return max(diagScore, gapInAScore, gapInBScore)
@@ -271,7 +271,7 @@ def printSol(type, seqA, seqB, scoreDict):
         score, row, col = findLocalScore(scoreTable)
     elif (type == OVERLAP):
         col = scoreTable[:, -1]
-        score = max(col)
+        score = np.max(col)
         index = np.where(col == score)
         row, col = index[0][0], len(seqB)
     seqA_align, seqB_align,start = traceBackTable(flagTable, seqA, seqB, row, col)
