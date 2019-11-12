@@ -79,7 +79,7 @@ def getGapInAScore(scoreTable, i, j, scoreDict, seqB):
     :param seqB:second sequence
     :return: the score
     '''
-    return scoreTable[i][j - 1] + scoreDict["-" + seqB[j - 1]]
+    return scoreTable[i][j - 1] + scoreDict[GAP + seqB[j - 1]]
 
 
 def getGapInBScore(scoreTable, i, j, scoreDict, seqA):
@@ -93,7 +93,7 @@ def getGapInBScore(scoreTable, i, j, scoreDict, seqA):
     :param seqB:second sequence
     :return: the score
     '''
-    return scoreTable[i - 1][j] + scoreDict["-" + seqA[i - 1]]
+    return scoreTable[i - 1][j] + scoreDict[GAP + seqA[i - 1]]
 
 
 def getFlag(val, diagScore, gapInAScore, gapInBScore):
@@ -184,7 +184,7 @@ def globalMat(scoreTable, scoreDict, flagsTable, seqA, seqB):
     '''
     setFirstCol(scoreTable, scoreDict, seqA)
     for i in range(1, len(seqB) + INITIATION_LINE):
-        scoreTable[0][i] = scoreTable[0][i - 1] + scoreDict["-" + seqB[i - 1]]
+        scoreTable[0][i] = scoreTable[0][i - 1] + scoreDict[GAP + seqB[i - 1]]
     flagsTable[0] = GAP_IN_A
     for i in range(1, len(seqA) + INITIATION_LINE):
         flagsTable[i][0] = GAP_IN_B
@@ -199,7 +199,7 @@ def setFirstCol(scoreTable, scoreDict, seqA):
     :param seqA:first sequence
     '''
     for i in range(1, len(seqA) + INITIATION_LINE):
-        scoreTable[i][0] = scoreTable[i - 1][0] + scoreDict["-" + seqA[i - 1]]
+        scoreTable[i][0] = scoreTable[i - 1][0] + scoreDict[GAP + seqA[i - 1]]
 
 
 def score(type, diagScore, gapInAScore, gapInBScore):
@@ -215,6 +215,8 @@ def score(type, diagScore, gapInAScore, gapInBScore):
         return max(diagScore, gapInAScore, gapInBScore)
     elif (type == LOCAL):
         return max(diagScore, gapInAScore, gapInBScore, 0)
+
+
 
 
 def getTables(seqA, seqB, scoreDict, alinmentType):
@@ -276,9 +278,11 @@ def printSol(type, seqA, seqB, scoreDict):
         row, col = index[0][0], len(seqB)
     seqA_align, seqB_align,start = traceBackTable(flagTable, seqA, seqB, row, col)
     if(type==OVERLAP):
-        seqB_align = ("-"*start)+seqB_align+seqB[row:]
-        seqA_align=seqA[:start]+seqA_align+("-"*(len(seqB)-row))
-    printResult(seqA_align, seqB_align, score, type)
+        seqB_align = seqB[:start]+seqB_align+(GAP*(len(seqA)-row))
+        seqA_align=(GAP*start)+seqA_align+seqA[row:]
+        printResult(seqB_align,seqA_align,score,type)
+    else:
+        printResult(seqA_align, seqB_align, score, type)
 
 
 def main():
