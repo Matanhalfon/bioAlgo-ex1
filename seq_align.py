@@ -212,9 +212,9 @@ def score(type, diagScore, gapInAScore, gapInBScore):
     :return:the max score between them
     '''
     if ((type == GLOBAL) | (type == OVERLAP)):
-        return max(diagScore, gapInAScore, gapInBScore)
+        return np.max(diagScore, gapInAScore, gapInBScore)
     elif (type == LOCAL):
-        return max(diagScore, gapInAScore, gapInBScore, 0)
+        return np.max(diagScore, gapInAScore, gapInBScore, 0)
 
 
 
